@@ -48,3 +48,5 @@ colnames(types_by_state)[1] <- "Firearm Types"
 # FFL Theft/Loss Reports Matching Firearms Subsequently Recovered and Traced
 FFL <- read_excel("../data/Firearms Trace Data/modified/2012/thefthitsontracesbyrecstn.xlsx",
                   range = "B1:C53")
+
+# need loop
