@@ -3,7 +3,6 @@
 library(tidyverse)
 library(lubridate)
 library(rvest)
-library(RCurl) 
 library(png)
 ######################################################################################
 
@@ -16,7 +15,7 @@ main_page_response <- read_html(main_page_url)
 sales_page <- html_elements(x = main_page_response, 
                               xpath = '//a[@href = "/cryptopunks/sales"]')
 sales_page_url <- html_attr(x = sales_page, 'href')
-sales_count <- parse_number(html_text(sales_page)) 
+sales_count <- parse_number(html_text(sales_page))# count sales amount
 
 # put every sale in one page(easier to scrape)
 sales_page_url <- paste0('https://www.larvalabs.com', sales_page_url, '?perPage=', sales_count, "&page=1")
@@ -38,9 +37,15 @@ punk_image_url.each <- html_elements(x = sales_page_response,
                                  xpath = '//div[@class= "text-center"]//img')
 punk_image_url.each <- html_attr(x = punk_image_url.each, 'src')
 punk_image_url.each <- unique(paste0('https://www.larvalabs.com', punk_image_url.each))
+######################################################################################
+
+######################################################################################
+start <- Sys.time() # record time
 
 # get the image, gender, attributes, and sale history information 
-punk_count <- length(sales_page_url.each) # count total punk amount appeared in the sale history
+
+# count total punk amount appeared in the sale history
+punk_count <- length(sales_page_url.each) 
 
 # create empty list
 punk_image <- vector(mode = "list", length = punk_count)
@@ -48,11 +53,14 @@ punk_gender <- vector(mode = "list", length = punk_count)
 punk_attributes <- vector(mode = "list", length = punk_count)
 sale_history <- vector(mode = "list", length = punk_count)
 
-# for (i in 1:length(sales_page_url.each)){
-for (i in 1:10){
+# use for loop to scrape the information
+# (which can avoid HTTP error 429)
+for (i in 1:length(sales_page_url.each)){
+# for (i in 1:10){
+  
   # extract the image of each punk
   punk_image_url.each.temp <- punk_image_url.each[i]
-  tempimage <- tempfile()
+  tempimage <- tempfile() # to avoid save the image to the disk
   download.file(punk_image_url.each.temp, tempimage, mode="wb")
   punk_image[[i]] <- readPNG(tempimage)
   file.remove(tempimage) # cleanup
@@ -86,8 +94,16 @@ for (i in 1:10){
   print(i) # show the progress
 }
 
+end <- Sys.time()  # record time
+
+end - start  # record time
+######################################################################################
+
+######################################################################################
+# save the data
 save(punk_image, 
      punk_gender, 
      punk_attributes, 
      sale_history,
      file = "../data/sales_scraped_information.RData")
+######################################################################################
