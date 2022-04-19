@@ -1,8 +1,10 @@
-##################################################################################
+######################################################################################
 # load library
 library(tidyverse)
 library(lubridate)
 library(rvest)
+library(RCurl) 
+library(png)
 ######################################################################################
 
 ######################################################################################
@@ -24,50 +26,68 @@ sales_page_response <- read_html(sales_page_url)
 sales_page.each <- html_elements(x = sales_page_response, 
                             xpath = '//div[@class= "text-center"]//a')
 
+# get each sale page url 
 sales_page_url.each <- html_attr(x = sales_page.each, 'href')
-Punk_name <- unique(parse_number(html_attr(x = sales_page.each, 'title')))
+## get each unique punk's name
+Punk_name <- unique(parse_number(html_attr(x = sales_page.each, 'title'))) 
+## make the sale page url can be directly read
+sales_page_url.each <- unique(paste0('https://www.larvalabs.com', sales_page_url.each)) 
 
-sales_page_url.each <- unique(paste0('https://www.larvalabs.com', sales_page_url.each))
+# extract the image url
+punk_image_url.each <- html_elements(x = sales_page_response, 
+                                 xpath = '//div[@class= "text-center"]//img')
+punk_image_url.each <- html_attr(x = punk_image_url.each, 'src')
+punk_image_url.each <- unique(paste0('https://www.larvalabs.com', punk_image_url.each))
 
+# get the image, gender, attributes, and sale history information 
+punk_count <- length(sales_page_url.each) # count total punk amount appeared in the sale history
 
-# sales_page_url.each_response <- vector(mode = "list", length = 1)
+# create empty list
+punk_image <- vector(mode = "list", length = punk_count)
+punk_gender <- vector(mode = "list", length = punk_count)
+punk_attributes <- vector(mode = "list", length = punk_count)
+sale_history <- vector(mode = "list", length = punk_count)
 
 # for (i in 1:length(sales_page_url.each)){
-for (i in 1){
-  sales_page_url.each_response <- append(sales_page_url.each_response, read_html(sales_page_url.each[i]))
+for (i in 1:10){
+  # extract the image of each punk
+  punk_image_url.each.temp <- punk_image_url.each[i]
+  tempimage <- tempfile()
+  download.file(punk_image_url.each.temp, tempimage, mode="wb")
+  punk_image[[i]] <- readPNG(tempimage)
+  file.remove(tempimage) # cleanup
+  
+  # extract sales page information
+  sales_page_url.each_response <- read_html(sales_page_url.each[i])
+  
+  ## punk gender
+  punk_gender[[i]] <- html_elements(x = sales_page_url.each_response, 
+                               xpath = '//div[@id="punkDetails"]//h4') %>% 
+    html_text()
+  
+  ## punk attributes
+  punk_attributes.temp <- html_elements(x = sales_page_url.each_response, 
+                                   xpath = '//div[@id="punkDetails"]//div[@class="row detail-row"]//a') %>% 
+    html_text()
+  punk_attributes[[i]] <- punk_attributes.temp[2: (2+parse_number(punk_attributes.temp[1])-1)]
+  
+  ## punk sale history
+  sale_history.temp <- html_elements(x = sales_page_url.each_response, 
+                                xpath = '//div[@id="punkHistory"]//td') %>% 
+    html_text()
+  sale_history[[i]] <- as_tibble(matrix(sale_history.temp, 
+                                   nrow = length(sale_history.temp)/5, ncol = 5, 
+                                   byrow=TRUE))
   
   # wait for 3 second to avoid HTTP error 429
   date_time<-Sys.time()
   while((as.numeric(Sys.time()) - as.numeric(date_time))<3){} #dummy while loop
-  print(i)
+  
+  print(i) # show the progress
 }
 
-# save(sales_page_url.each_response, file = "sales_page_url_each_response.RData")
-# save(main_page_response, file = "test.RData")
-
-# sales_page_url.each_response  %>% toString %>% saveRDS(., "sales_page_url_each_response.RDS")
-# newobject <- readRDS("someobject.RDS") %>% read_html
-
-# saveRDS(as.character(sales_page_url.each_response), "sales_page_url_each_response0.RDS")
-
-# saveRDS(sales_page_url.each_response, "sales_page_url_each_response1.RDS")
-
-i <- 1
-sales_page_url.each_response <- read_html(sales_page_url.each[i])
-
-# extract sales page information
-punk_gender <- html_elements(x = sales_page_url.each_response, 
-                              xpath = '//div[@id="punkDetails"]//h4') %>% 
-  html_text()
-
-punk_attributes <- html_elements(x = sales_page_url.each_response, 
-                              xpath = '//div[@id="punkDetails"]//div[@class="row detail-row"]//a') %>% 
-  html_text()
-punk_attributes <- punk_attributes[2: (2+parse_number(punk_attributes[1])-1)]
-
-sale_history <- html_elements(x = sales_page_url.each_response, 
-                      xpath = '//div[@id="punkHistory"]//td') %>% 
-  html_text()
-sale_history <- as_tibble(matrix(sale_history, 
-                                 nrow = length(sale_history)/5, ncol = 5, 
-                                 byrow=TRUE))
+save(punk_image, 
+     punk_gender, 
+     punk_attributes, 
+     sale_history,
+     file = "../data/sales_scraped_information.RData")
