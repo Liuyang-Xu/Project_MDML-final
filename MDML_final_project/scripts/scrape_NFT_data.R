@@ -55,7 +55,7 @@ sale_history <- vector(mode = "list", length = punk_count)
 
 # use for loop to scrape the information
 # (which can avoid HTTP error 429)
-for (i in 1766:length(sales_page_url.each)){
+for (i in 1:length(sales_page_url.each)){
 # for (i in 1:10){
   
   # extract the image of each punk
@@ -101,7 +101,14 @@ end - start  # record time
 
 ######################################################################################
 # save the data
-save(punk_image, 
+save(# in case we need
+     sales_count,
+     sales_page_url.each,
+     punk_image_url.each,
+     # core data
+     Punk_name,
+     punk_count,
+     punk_image, 
      punk_gender, 
      punk_attributes, 
      sale_history,
