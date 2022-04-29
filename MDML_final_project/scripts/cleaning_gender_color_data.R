@@ -15,7 +15,8 @@ load("../data/sales_scraped_information.RData")
 punk_gender <- as_tibble(unlist(punk_gender)) %>% 
   unnest_tokens(word, value) %>% 
   slice(seq(from=4, to=n(), by=5)) %>% 
-  mutate(punk_name = Punk_name)
+  mutate(punk_name = Punk_name) %>% 
+  dplyr::rename("gender" = "word")
 ######################################################################################
 
 ######################################################################################
@@ -24,9 +25,8 @@ punk_image_RGBA <- as_tibble(matrix(unlist(punk_image), nrow = punk_count*4, byr
   rowSums() %>% 
   matrix(nrow = punk_count, ncol = 4, byrow = TRUE) %>% as_tibble() %>% 
   mutate(punk_name = Punk_name) %>% 
-  rename("red" = "V1", "green" = "V2", "blue" = "V3", "alpha" = "V4")
+  dplyr::rename("red" = "V1", "green" = "V2", "blue" = "V3", "alpha" = "V4")
 ######################################################################################
-
 
 ######################################################################################
 # save the data

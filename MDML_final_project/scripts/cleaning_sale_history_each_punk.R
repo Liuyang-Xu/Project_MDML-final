@@ -148,5 +148,5 @@ sale_history_account_test_1 <- sale_history_account_test %>% mutate(
 #export the csv file
 
 #convert all inf tO NA
-write.csv(sale_history_account_test_1, "../data/sale_history_account_test_1.csv", row.names = FALSE)
+write.csv(sale_history_account_test_1, "../data/sale_history_account_test.csv", row.names = FALSE)
 ######################################################################################
