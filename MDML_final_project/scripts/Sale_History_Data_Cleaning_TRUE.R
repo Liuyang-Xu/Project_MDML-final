@@ -10,8 +10,14 @@ library(plyr)
 library(dplyr)
 library(tidytext)
 library(ROCR)
+######################################################################################
 
 ######################################################################################
+# load the data
+load("../data/sales_scraped_information.RData")
+######################################################################################
+
+
 #
 
 #first, clean the data like dollars and data
