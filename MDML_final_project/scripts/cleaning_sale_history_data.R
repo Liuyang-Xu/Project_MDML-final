@@ -27,7 +27,7 @@ for(i in 1:length(sale_history)){
   sale_history_sub[[i]] <- sale_history_sub[[i]] %>% 
     mutate(dollar = str_split_fixed(sale_history_sub[[i]]$V4, "??", 2))
   
-  sale_history_sub[[i]]$dollar[,2]<- gsub('[M]',"00000", sale_history_sub[[i]]$dollar[,2])# covert "M" to "00000"
+  sale_history_sub[[i]]$dollar[,2]<- gsub('[M]',"000000", sale_history_sub[[i]]$dollar[,2])# covert "M" to "00000"
   sale_history_sub[[i]]$dollar[,2]<- gsub('[B]',"00000000", sale_history_sub[[i]]$dollar[,2])# covert "B" to "000000000"
   sale_history_sub[[i]]$dollar[,2]<- as.numeric(gsub('[$,().<Y]',"", sale_history_sub[[i]]$dollar[,2]))# change all number with symbol to numerics form
   #View all punk's "sold","bid","offered" which smaller than 0.01 as 1 dollar
