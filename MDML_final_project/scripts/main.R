@@ -37,22 +37,38 @@ sale_data <- sale_history %>%
 ######################################################################################
 
 ######################################################################################
+# split the data set
+
+# randomize the order
 sale_data <- sale_data %>% 
-  select(-largest_bid) %>% 
-  arrange(desc(largest_offer))
+  slice(sample(1:n()))
 
+# 50% train
+train <- sale_data %>% 
+  slice(1:round(n()/2))
 
+# 25% validate
+validate <- sale_data %>% 
+  slice((round(n()/2) + 1):(round(3*n()/4)))
 
-
+# 25% test
+test <- sale_data %>% 
+  slice((round(3*n()/4) + 1):n())
 ######################################################################################
 
 ######################################################################################
-train
 
-validate
+# use nnet model
+fit.nnet <- nnetnnet(..., data = train, size = 2)
+test <- test %>% 
+  mutate(predicted.probability.nnet = predict(fit.nnet, test, type='raw'))
 
-auc
+test.pred - prediction(test$predicted.probability.nnet, test$outcome)
+test.perf - performance(test.pred, auc)
+cat('the auc score is ', test.perf@y.values[[1]], n)
 
+
+# use ... model
 
 # predicting outcome as a function of cuisine, borough, month, weekday, and the four historical features 
 formula <- "outcome ~ cuisine + borough + month + weekday + 
