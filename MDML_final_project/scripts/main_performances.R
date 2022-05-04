@@ -28,70 +28,88 @@ sale_data <- sale_data %>%
 ######################################################################################
 
 ######################################################################################
-# split the data set
-
-# randomize the order
-sale_data <- sale_data %>% 
-  slice(sample(1:n()))
-
-# 50% train
-train <- sale_data %>% 
-  slice(1:round(n()/2))
-
-# 25% validate
-validate <- sale_data %>% 
-  slice((round(n()/2) + 1):(round(3*n()/4)))
-
-# 25% test
-test <- sale_data %>% 
-  slice((round(3*n()/4) + 1):n())
-######################################################################################
-
-######################################################################################
 # model selection
 ######################################################################################
 
 ######################################################################################
-# use nnet model
-fit.nnet <- nnet(over_ave_ratio ~ ., data = train, size = 2, maxit = 1000)
-validate <- validate %>% 
-  mutate(predicted.probability.nnet = predict(fit.nnet, validate, type='raw'))
+Iter <- 10 # iteration time
 
-validate.pred <- prediction(validate$predicted.probability.nnet, validate$over_ave_ratio)
-validate.perf <- performance(validate.pred, "auc")
-cat('the auc score is ', validate.perf@y.values[[1]], "\n")
-######################################################################################
+AUC_performance <- data.frame(Iteration = c(1:Iter),
+                              nnet = rep(NA, Iter),
+                              rf = rep(NA, Iter),
+                              logi = rep(NA, Iter))
 
-######################################################################################
-# use random forest model
+for (i in 1:Iter){
+  ###################################################
+  # split the data set
+  
+  # randomize the order
+  sale_data <- sale_data %>% 
+    slice(sample(1:n()))
+  
+  # 50% train
+  train <- sale_data %>% 
+    slice(1:round(n()/2))
+  
+  # 25% validate
+  validate <- sale_data %>% 
+    slice((round(n()/2) + 1):(round(3*n()/4)))
+  
+  # 25% test
+  test <- sale_data %>% 
+    slice((round(3*n()/4) + 1):n())
+  ###################################################
+  
+  ###################################################
+  # use nnet model
+  fit.nnet <- nnet(over_ave_ratio ~ ., data = train, size = 2, maxit = 1000)
+  validate <- validate %>% 
+    mutate(predicted.probability.nnet = predict(fit.nnet, validate, type='raw'))
+  
+  validate.pred <- prediction(validate$predicted.probability.nnet, validate$over_ave_ratio)
+  validate.perf <- performance(validate.pred, "auc")
+  AUC_performance$nnet[i] <- validate.perf@y.values[[1]]
+  ###################################################
+  
+  ###################################################
+  # use random forest model
+  
+  # Fit a random forest model on train
+  # Use 1000 trees, and make sure that both respect.unordered.factors and probability are TRUE
+  # other settings default values
+  fit.rf <- ranger(over_ave_ratio ~ ., data = train, num.trees = 1000,
+                   respect.unordered.factors = T, probability = T)
+  
+  # compute the AUC of this model on test.
+  validate <- validate %>% 
+    mutate(predicted.probability.rf = predict(fit.rf, validate, type='response')$predictions[,2])
+  
+  validate.pred <- prediction(validate$predicted.probability.rf, validate$over_ave_ratio)
+  validate.perf <- performance(validate.pred, "auc")
+  AUC_performance$rf[i] <- validate.perf@y.values[[1]]
+  ###################################################
+  
+  ###################################################
+  # use logistic model 1
+  # Fit a logistic regression model on train
+  fit.logi <- glm(over_ave_ratio ~ ., train, family = "binomial")
+  
+  # compute the AUC of this model on test.
+  validate <- validate %>% 
+    mutate(predicted.probability.logi = predict(fit.logi, validate, type='response'))
+  
+  validate.pred <- prediction(validate$predicted.probability.logi, validate$over_ave_ratio)
+  validate.perf <- performance(validate.pred, "auc")
+  AUC_performance$logi[i] <- validate.perf@y.values[[1]]
+  ###################################################
+}
 
-# Fit a random forest model on train
-# Use 1000 trees, and make sure that both respect.unordered.factors and probability are TRUE
-# other settings default values
-fit.rf <- ranger(over_ave_ratio ~ ., data = train, num.trees = 1000,
-                 respect.unordered.factors = T, probability = T)
+p <- ggplot(data = AUC_performance, aes(x = Iteration)) +
+  geom_line(aes(y = nnet, color = "nnet")) +
+  geom_line(aes(y = rf, color = "rf")) +
+  geom_line(aes(y = logi, color = "logi"))
+p
 
-# compute the AUC of this model on test.
-validate <- validate %>% 
-  mutate(predicted.probability.rf = predict(fit.rf, validate, type='response')$predictions[,2])
-
-validate.pred <- prediction(validate$predicted.probability.rf, validate$over_ave_ratio)
-validate.perf <- performance(validate.pred, "auc")
-cat('the auc score is ', validate.perf@y.values[[1]], "\n")
-######################################################################################
-
-######################################################################################
-# use logistic model 1
-# Fit a logistic regression model on train
-fit.logi <- glm(over_ave_ratio ~ ., train, family = "binomial")
-
-# compute the AUC of this model on test.
-validate <- validate %>% 
-  mutate(predicted.probability.logi = predict(fit.logi, validate, type='response'))
-
-validate.pred <- prediction(validate$predicted.probability.logi, validate$over_ave_ratio)
-validate.perf <- performance(validate.pred, "auc")
-cat('the auc score is ', validate.perf@y.values[[1]], "\n")
 ######################################################################################
 
 ######################################################################################
@@ -161,14 +179,14 @@ train <- train %>% select(-year,-month)
 formula <- over_ave_ratio ~ bid + bid_withdrawn + offer + offer_withdrawn +
   transfer  +sold_price  + last_sold_price + #+largest_bid + unwrap + wrap
   gender+red+green + blue + alpha +
-Bandana   +  Beanie + Choker  +  Pilot_Helmet +  Tiara +  Orange_Side + #Buck_Teeth+          
+  Bandana   +  Beanie + Choker  +  Pilot_Helmet +  Tiara +  Orange_Side + #Buck_Teeth+          
   Welding_Goggles+ Pigtails +  Pink_With_Hat + Top_Hat  +  Spots +        
   Rosy_Cheeks +  Blonde_Short  +Wild_White_Hair + Cowboy_Hat+  Wild_Blonde+      
   Straight_Hair_Blonde+ Big_Beard +  Red_Mohawk + Half_Shaved  + Blonde_Bob +      
   Vampire_Hair+Clown_Hair_Green+Straight_Hair_Dark+Straight_Hair+Silver_Chain  +      
   Dark_Hair +  Purple_Hair+Gold_Chain +  Tassle_Hat +     #Medical_Mask +
   Fedora +    + Clown_Nose  +    Cap_Forward  +   Hoodie +    #Police_Cap +
-Front_Beard_Dark + Frown +  Purple_Eye_Shadow + Handlebars +  Blue_Eye_Shadow+  
+  Front_Beard_Dark + Frown +  Purple_Eye_Shadow + Handlebars +  Blue_Eye_Shadow+  
   Green_Eye_Shadow +Vape  + Front_Beard  +  Chinstrap + D_Glasses  +  
   Luxurious_Beard+ Normal_Beard+ Eye_Mask + #Mustache  + #Normal_Beard_Black  +
   Goat+  Do_rag +Shaved_Head+     Peak_Spike + #Muttonchops  +
