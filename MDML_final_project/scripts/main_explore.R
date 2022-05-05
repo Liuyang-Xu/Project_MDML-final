@@ -16,6 +16,8 @@ library(nnet)
 library(MASS)
 library(class)
 library(ggplot2)
+
+library(ggpubr)
 ######################################################################################
 
 ######################################################################################
@@ -27,8 +29,13 @@ load("../data/sale_data.RData")
 # check the sale distribution by year
 table(sale_data$year)
 
+sale_data <- sale_data %>% 
+  filter(sold_price < 1500000 & sold_price >0 )
 p <- ggplot(data = sale_data, aes(x = year, y = sold_price))+
-  geom_point()
+  geom_jitter(width = 0.2, height = 0.01,
+              size = 0.6, col = "gray28") +
+  geom_point(shape = 16, size = 5, col = "brown4", alpha = 0.1, stroke = 0.1) +
+  ylab("sold price")
 p
 
 sale_data <- sale_data %>% 
@@ -93,15 +100,74 @@ validate$predicted.probability.lm = predict(fit.lm, validate, type = 'response')
 ######################################################################################
 
 ######################################################################################
-plot.data <- tibble( 
+plot.data <- tibble(
   Real_Sold_Price = validate$sold_price, 
-  Prediction = validate$predicted.probability.nnet) %>% 
+  Prediction.nnet = validate$predicted.probability.nnet,
+  Prediction.rf = validate$predicted.probability.rf,
+  Prediction.lm = validate$predicted.probability.lm) %>% 
   arrange(Real_Sold_Price) %>% 
   mutate(Index = c(1:nrow(validate))) %>% 
-  filter(Prediction<4000000 & Real_Sold_Price>0 & Real_Sold_Price<1500000) %>% 
-  slice(1:(n()-1))
-p <- ggplot(data = plot.data, aes(x = Index))+
-  geom_line(aes(y = Real_Sold_Price, color = "Real_Sold_Price")) +
-  geom_line(aes(y = Prediction, color = "Prediction"))
-p
+  filter(Prediction.nnet <4000000 & 
+           Prediction.rf <4000000 &
+           Prediction.lm <4000000 &
+           Real_Sold_Price>0 & Real_Sold_Price<1500000)
+
+p1 <- ggplot(data = plot.data, aes(x = Index))+
+  geom_line(aes(y = Prediction.nnet, color = "Prediction by nnet"), alpha = 0.5) + 
+  geom_line(aes(y = Real_Sold_Price, color = "Real Sold Price")) +
+  scale_colour_manual("", 
+                    breaks = c("Prediction by nnet", "Real Sold Price"),
+                    values = c("brown4", "blue"))
+p2 <- ggplot(data = plot.data, aes(x = Index))+
+  geom_line(aes(y = Prediction.rf, color = "Prediction by rf"), alpha = 0.5) + 
+  geom_line(aes(y = Real_Sold_Price, color = "Real Sold Price")) +
+  scale_colour_manual("", 
+                      breaks = c("Prediction by rf", "Real Sold Price"),
+                      values = c("brown4", "blue"))
+p3 <- ggplot(data = plot.data, aes(x = Index))+
+  geom_line(aes(y = Prediction.lm, color = "Prediction by lm"), alpha = 0.5) + 
+  geom_line(aes(y = Real_Sold_Price, color = "Real Sold Price")) +
+  scale_colour_manual("", 
+                      breaks = c("Prediction by lm", "Real Sold Price"),
+                      values = c("brown4", "blue"))
+ggarrange(p1,p2,p3,ncol = 1, nrow = 3, labels = c("nnet", "rf", "lm"))
 ######################################################################################
+
+######################################################################################
+plot.data <- tibble(
+  Real_Sold_Price = validate$sold_price, 
+  Prediction.nnet = validate$predicted.probability.nnet - validate$sold_price,
+  Prediction.rf = validate$predicted.probability.rf - validate$sold_price,
+  Prediction.lm = validate$predicted.probability.lm - validate$sold_price,
+  Prediction.nnet2 = Prediction.nnet^2,
+  Prediction.rf2 = Prediction.rf^2,
+  Prediction.lm2 = Prediction.lm^2) %>% 
+  arrange(Real_Sold_Price) %>% 
+  mutate(Index = c(1:nrow(validate))) %>% 
+  filter(Real_Sold_Price>0 & Real_Sold_Price<1500000,
+         Prediction.nnet > -500000 & Prediction.nnet < 1000000)
+
+p1 <- ggplot(data = plot.data, aes(x = Index, y = Prediction.nnet))+
+  geom_point(col = "burlywood", alpha = 0.1)+
+  ylab("Residuals")
+p2 <- ggplot(data = plot.data, aes(x = Index, y = Prediction.rf))+
+  geom_point(col = "skyblue4", alpha = 0.1)+
+  ylab("Residuals")
+p3 <- ggplot(data = plot.data, aes(x = Index, y = Prediction.lm))+
+  geom_point(col = "chartreuse4", alpha = 0.1)+
+  ylab("Residuals")
+ggarrange(p1,p2,p3,ncol = 1, nrow = 3, labels = c("nnet", "rf", "lm"))
+######################################################################################
+
+rss <- tibble(
+  Real_Sold_Price = validate$sold_price, 
+  Prediction.nnet = validate$predicted.probability.nnet - validate$sold_price,
+  Prediction.rf = validate$predicted.probability.rf - validate$sold_price,
+  Prediction.lm = validate$predicted.probability.lm - validate$sold_price,
+  Prediction.nnet2 = Prediction.nnet^2,
+  Prediction.rf2 = Prediction.rf^2,
+  Prediction.lm2 = Prediction.lm^2) %>% 
+  summarise(nnet2 = sum(Prediction.nnet2)/n(),
+            rf2 = sum(Prediction.rf2)/n(),
+            lm2 = sum(Prediction.lm2)/n(),)
+
