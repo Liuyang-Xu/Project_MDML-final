@@ -27,7 +27,7 @@ sale_data <- sale_data %>%
          gender = as.factor(gender),
          year = as.factor(year),
          month = as.factor(month)) %>% 
-  select(-sold_price, -id)
+  dplyr::select(-sold_price, -id)
 ######################################################################################
 
 ######################################################################################
@@ -62,14 +62,14 @@ train.knn <- train %>%
   mutate(gender = as.numeric(gender),
          year = as.numeric(year),
          month = as.numeric(month)) %>% 
-  select(-over_ave_ratio)
+  dplyr::select(-over_ave_ratio)
 
 validate.knn.label <- validate$over_ave_ratio
 validate.knn <- validate %>% 
   mutate(gender = as.numeric(gender),
          year = as.numeric(year),
          month = as.numeric(month)) %>% 
-  select(-over_ave_ratio)
+  dplyr::select(-over_ave_ratio)
 
 accuracy.knn <- rep(NA, length(c(seq(99, 1, -3), 1)))
 i <- 0
@@ -239,6 +239,31 @@ accuracy <- data.frame(knn = accuracy.knn.value,
                        nnet = sum(validate$prediction.nnet == validate$over_ave_ratio)/length(validate$over_ave_ratio),
                        logi = sum(validate$prediction.logi == validate$over_ave_ratio)/length(validate$over_ave_ratio),
                        lm = sum(validate$prediction.lm == validate$over_ave_ratio)/length(validate$over_ave_ratio))
+######################################################################################
+
+######################################################################################
+# create new train
+
+train.new <- sale_data %>% 
+  slice(1:(round(3*n()/4)))
+######################################################################################
+
+######################################################################################
+# use random forest model
+
+# Fit a random forest model on train
+# Use 1000 trees, and make sure that both respect.unordered.factors and probability are TRUE
+# other settings default values
+fit.rf <- ranger(over_ave_ratio ~ ., data = train.new, num.trees = 1000,
+                 respect.unordered.factors = T, probability = T)
+
+# compute the AUC of this model on test.
+test <- test %>% 
+  mutate(predicted.probability.rf = predict(fit.rf, test, type='response')$predictions[,2])
+
+test.pred <- prediction(test$predicted.probability.rf, test$over_ave_ratio)
+test.perf <- performance(test.pred, "auc")
+cat('the auc score is ', test.perf@y.values[[1]], "\n")
 ######################################################################################
 
 plot(density(sale_data$blue), main = "Color Distribution of All Punks", xlab = "Color Information", 
