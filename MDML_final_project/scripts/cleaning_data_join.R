@@ -1,3 +1,4 @@
+
 ######################################################################################
 # load library
 library(tidyverse)
@@ -116,24 +117,42 @@ sale_data <- Sale_History_Data_Cleaning_Final_result_test %>%
   select(-largest_bid) #drop largest bid col because too many NAs
 ######################################################################################
 
-######################################################################################         
+######################################################################################     
+sale_data <- sale_data %>% select(-year_month)%>%
+  mutate(year = year(sold_date),
+         month = month(sold_date))%>%select(-sold_date,-wrap,-unwrap)
+
 # find the average increasing rate for each transaction by finding difference between
 # current sold price and last sold price except for first transaction 
 sale_data_1 <- subset(sale_data , sale_data$last_sold_price != "NA") #delete the fist transaction record in each punk
 sale_data_1 <- subset(sale_data , sale_data$last_sold_price != 0) #delete the last_sold_price transaction contains 0
-ave_increasing_ratio <- 0.001*(mean(sale_data_1$sold_price/sale_data_1$last_sold_price))#average ratio between current sale and last sale ==  3143.927
 
-# set the index 
-sale_data <- sale_data %>%
-  mutate(over_ave_ratio = ifelse((sold_price/last_sold_price) >  ave_increasing_ratio,1,0))
+#find ratio for eacxh year 
+ratio_year_1 <- c("2017","2018","2019","2020","2021","2022")
+ratio_year <- c()
+for(i in 1:length(ratio_year_1)){
+  ratio_year[i] <- mean(subset(sale_data_1$sold_price/sale_data_1$last_sold_price,sale_data_1$year == ratio_year_1[i] ))*0.05
+}
+
+#set the over_ave_ratio for each year condition on their year
+sale_data_year <- list()
+for(i in 1: length(ratio_year_1)){
+sale_data_year[[i]] <- sale_data %>% filter(year == ratio_year_1[i])%>%
+mutate(over_ave_ratio = ifelse((sold_price/last_sold_price) > ratio_year[i],1,0))
+}
+sale_data <- rbind(sale_data_year[[1]],
+                   sale_data_year[[2]],
+                   sale_data_year[[3]],
+                   sale_data_year[[4]],
+                   sale_data_year[[5]],
+                   sale_data_year[[6]])
 
 # drop the row that column over_ave_ratio == 0
 sale_data <- sale_data %>% filter(over_ave_ratio != "NA")
 
 # drop the year_month column 
-sale_data <- sale_data %>% select(-year_month)%>%
-  mutate(year = year(sold_date),
-         month = month(sold_date))%>%select(-sold_date,-punk_name, -id,-wrap,-unwrap)
+sale_data <- sale_data %>%
+  select(-punk_name)
 sale_data <- na.omit((sale_data))
 ######################################################################################
 

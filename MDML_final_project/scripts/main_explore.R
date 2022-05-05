@@ -28,6 +28,13 @@ sale_data <- sale_data %>%
          year = as.factor(year),
          month = as.factor(month)) %>% 
   select(-sold_price, -id)
+
+sale_data <- sale_data %>% 
+  filter(year >= 2021) %>% 
+  mutate(gender = as.factor(gender),
+         year = as.factor(year),
+         month = as.factor(month)) %>% 
+  select(-over_ave_ratio)
 ######################################################################################
 
 ######################################################################################
@@ -39,15 +46,12 @@ sale_data <- sale_data %>%
 
 # 50% train
 train <- sale_data %>% 
-  slice(1:round(n()/2))
+  slice(1:(round(3*n()/4)))
 
 # 25% validate
 validate <- sale_data %>% 
-  slice((round(n()/2) + 1):(round(3*n()/4)))
-
-# 25% test
-test <- sale_data %>% 
   slice((round(3*n()/4) + 1):n())
+
 ######################################################################################
 
 ######################################################################################
@@ -55,35 +59,27 @@ test <- sale_data %>%
 ######################################################################################
 
 ######################################################################################
-# use the KNN model  
+# use nnet model
+# fit.nnet <- nnet(over_ave_ratio ~ ., data = train, size = 2, maxit = 1000)
+fit.nnet <- nnet(sold_price ~ ., data = train, size=10, linout=TRUE, skip=TRUE, MaxNWts=10000, trace=FALSE, maxit=1000)
+validate <- validate %>% 
+  mutate(predicted.probability.nnet = predict(fit.nnet, validate, type='raw'))
 
-train.knn.label <- train$over_ave_ratio
-train.knn <- train %>% 
-  mutate(gender = as.numeric(gender),
-         year = as.numeric(year),
-         month = as.numeric(month)) %>% 
-  select(-over_ave_ratio)
+plot.data <- tibble( 
+  Real_Sold_Price = validate$sold_price, 
+  Prediction = validate$predicted.probability.nnet) %>% 
+  arrange(Real_Sold_Price) %>% 
+  mutate(Index = c(1:nrow(validate))) %>% 
+  filter(Prediction<4000000 & Real_Sold_Price>0 & Real_Sold_Price<1500000) %>% 
+  slice(1:(n()-1))
+p <- ggplot(data = plot.data, aes(x = Index))+
+  geom_line(aes(y = Real_Sold_Price, color = "Real_Sold_Price")) +
+  geom_line(aes(y = Prediction, color = "Prediction"))
+p
 
-validate.knn.label <- validate$over_ave_ratio
-validate.knn <- validate %>% 
-  mutate(gender = as.numeric(gender),
-         year = as.numeric(year),
-         month = as.numeric(month)) %>% 
-  select(-over_ave_ratio)
-
-accuracy.knn <- rep(NA, length(c(seq(99, 1, -3), 1)))
-i <- 0
-
-for (K in c(seq(99, 1, -3), 1) ){
-  i <- i + 1
-  knn_predict <- knn(train.knn, validate.knn, train.knn.label, k = K)
-  accuracy.knn[i] <- sum(knn_predict == validate$over_ave_ratio)/length(knn_predict)
-  cat('K = ', K, ': accuracy = ', 
-      sum(knn_predict == validate$over_ave_ratio)/length(knn_predict), " \n")
-}
-
-accuracy.knn.value <- max(accuracy.knn)
-accuracy.knn.location <- which(accuracy.knn==max(accuracy.knn),arr.ind=T)
+validate.pred <- prediction(validate$predicted.probability.nnet, validate$over_ave_ratio)
+validate.perf <- performance(validate.pred, "auc")
+cat('the auc score is ', validate.perf@y.values[[1]], "\n")
 ######################################################################################
 
 ######################################################################################
@@ -105,25 +101,35 @@ cat('the auc score is ', validate.perf@y.values[[1]], "\n")
 ######################################################################################
 
 ######################################################################################
-# use nnet model
-fit.nnet <- nnet(over_ave_ratio ~ ., data = train, size=10, MaxNWts=10000, maxit=1000)
-summary.fit.nnet <- summary(fit.nnet)
+# use logistic model 1
+# Fit a logistic regression model on train
+fit.logi <- glm(over_ave_ratio ~ ., train, family = "binomial")
 
+# compute the AUC of this model on test.
 validate <- validate %>% 
-  mutate(predicted.probability.nnet = predict(fit.nnet, validate, type='raw'))
+  mutate(predicted.probability.logi = predict(fit.logi, validate, type='response'))
 
-validate.pred <- prediction(validate$predicted.probability.nnet, validate$over_ave_ratio)
+validate.pred <- prediction(validate$predicted.probability.logi, validate$over_ave_ratio)
 validate.perf <- performance(validate.pred, "auc")
 cat('the auc score is ', validate.perf@y.values[[1]], "\n")
 ######################################################################################
 
 ######################################################################################
-# use logistic model
+# use logistic model 2
 
+#fit the test model
+sale_data_2 <- sale_data %>% 
+  mutate(gender = as.factor(gender),
+         year = as.factor(year),
+         month = as.factor(month))
+
+#train a logistic stops in sqf from 2008
+train <- sale_data_2 %>% filter(year==2017)
 # standardize real-valued attributes
-## mean of training set 
-
+###mean of training set 
+sold_price_mean <- mean(train$sold_price)
 last_sold_price_mean <- mean(train$last_sold_price)
+#largest_bid_mean <- mean(train$largest_bid)
 green_mean <- mean(train$green)
 red_mean <- mean(train$red)
 blue_mean <- mean(train$blue)
@@ -133,8 +139,12 @@ bid_withdrawn_mean <- mean(train$bid)
 offer_mean <- mean(train$bid)
 offer_withdrawn_mean <- mean(train$offer_withdrawn)
 transfer_mean <- mean(train$transfer)
-
+#unwrap_mean <- mean(train$unwrap)
+#wrap_mean <- mean(train$wrap)
+###sd of training set 
+sold_price_sd <- sd(train$sold_price)
 last_sold_price_sd <- sd(train$last_sold_price)
+#largest_bid_sd <- sd(train$largest_bid)
 green_sd <- sd(train$green)
 red_sd <- sd(train$red)
 blue_sd <- sd(train$blue)
@@ -144,24 +154,32 @@ bid_withdrawn_sd <- sd(train$bid)
 offer_sd <- sd(train$bid)
 offer_withdrawn_sd <- sd(train$offer_withdrawn)
 transfer_sd <- sd(train$transfer)
-
+#unwrap_sd <- sd(train$unwrap)
+#wrap_sd <- sd(train$wrap)
 #standarize the real-value attribute
 train <- train %>% 
-  mutate(last_sold_price = (last_sold_price - last_sold_price_mean)/last_sold_price_sd,
+  mutate(sold_price = (sold_price - sold_price_mean)/sold_price_sd,
+         last_sold_price = (last_sold_price - last_sold_price_mean)/last_sold_price_sd,
+         #largest_bid    = (largest_bid  - largest_bid_mean )/largest_bid_sd,
          red = (red - red_mean)/red_sd,
          blue = (blue - blue_mean)/blue_sd,
          green = (green - green_mean)/green_sd,
          alpha = (alpha - alpha_mean)/alpha_sd,
-    
-    bid = (bid - bid_mean)/bid_sd,
-    bid_withdrawn = (bid_withdrawn - bid_withdrawn_mean)/bid_withdrawn_sd,
-    offer = (offer - offer_mean)/offer_sd,
-    offer_withdrawn = (offer_withdrawn - offer_withdrawn_mean)/offer_withdrawn_sd,
-    transfer = (transfer - transfer_mean)/transfer_sd)
+         
+         bid = (bid - bid_mean)/bid_sd,
+         bid_withdrawn = (bid_withdrawn - bid_withdrawn_mean)/bid_withdrawn_sd,
+         offer = (offer - offer_mean)/offer_sd,
+         offer_withdrawn = (offer_withdrawn - offer_withdrawn_mean)/offer_withdrawn_sd,
+         transfer = (transfer - transfer_mean)/transfer_sd,
+         #unwrap = (unwrap - unwrap_mean)/unwrap_sd,
+         #wrap = (wrap - wrap_mean)/wrap_sd,
+  )
 
-# construct the regression formula
+
+train <- train %>% select(-year,-month)
+#construct the regression formula
 formula <- over_ave_ratio ~ bid + bid_withdrawn + offer + offer_withdrawn +
-  transfer + last_sold_price + #+largest_bid + unwrap + wrap
+  transfer  +sold_price  + last_sold_price + #+largest_bid + unwrap + wrap
   gender+red+green + blue + alpha +
   Bandana   +  Beanie + Choker  +  Pilot_Helmet +  Tiara +  Orange_Side + #Buck_Teeth+          
   Welding_Goggles+ Pigtails +  Pink_With_Hat + Top_Hat  +  Spots +        
@@ -182,74 +200,53 @@ formula <- over_ave_ratio ~ bid + bid_withdrawn + offer + offer_withdrawn +
   Horned_Rim_Glasses +  Big_Shades +  Nerd_Glasses+ Mole + #Black_Lipstick +
   Cigarette+  Earring      #Hot_Lipstick +  #Purple_Lipstick+                  
 
-fit.logi <- glm(formula , data = train, family = 'binomial')
-# summary(fit_1)
+fit_1 <- glm(formula , data = train, family = 'binomial')
+summary(fit_1)
 
-#fit.logi <- stepAIC(fit.logi.o)
+#fit the test model
+sale_data_2 <- sale_data %>% 
+  mutate(gender = as.factor(gender),
+         year = as.factor(year),
+         month = as.factor(month))
 
+test <- sale_data_2 %>% filter(year!=2017)
+#standardize
+sold_price_mean <- mean(test$sold_price)
+last_sold_price_mean <- mean(test$last_sold_price)
+#largest_bid_mean <- mean(test$largest_bid)
+green_mean <- mean(test$green)
+red_mean <- mean(test$red)
+blue_mean <- mean(test$blue)
+alpha_mean <- mean(test$alpha)
+###sd of testing set 
+sold_price_sd <- sd(test$sold_price)
+last_sold_price_sd <- sd(test$last_sold_price)
+#largest_bid_sd <- sd(test$largest_bid)
+green_sd <- sd(test$green)
+red_sd <- sd(test$red)
+blue_sd <- sd(test$blue)
+alpha_sd <- sd(test$alpha)
 #standarize the real-value attribute
-validate.logi <- validate %>% 
-  mutate(last_sold_price = (last_sold_price - last_sold_price_mean)/last_sold_price_sd,
+test <- test %>% 
+  mutate(sold_price = (sold_price - sold_price_mean)/sold_price_sd,
+         last_sold_price = (last_sold_price - last_sold_price_mean)/last_sold_price_sd,
+         #largest_bid    = (largest_bid  - largest_bid_mean )/largest_bid_sd,
          red = (red - red_mean)/red_sd,
          blue = (blue - blue_mean)/blue_sd,
          green = (green - green_mean)/green_sd,
          alpha = (alpha - alpha_mean)/alpha_sd)
 
-validate <- validate %>% mutate(predicted.probability.logi =  predict(fit.logi, validate.logi, type='response'))
+test <- test %>% mutate(predicted.probability =  predict(fit_1, test, type='response'))
 
 # compute the AUC of this model on test.
 
-validate.pred <- prediction(validate$predicted.probability.logi, validate$over_ave_ratio)
-validate.perf <- performance(validate.pred, "auc")
-cat('the auc score is ', validate.perf@y.values[[1]], "\n")
+test.pred <- prediction(test$predicted.probability.logi, test$over_ave_ratio)
+test.perf <- performance(test.pred, "auc")
+cat('the auc score is ', test.perf@y.values[[1]], "\n")
 ######################################################################################  
 
 ######################################################################################  
-# use linear regression  model
-# Fit a linear regression model on train
-train.lm <- train %>% 
-  mutate(over_ave_ratio = as.numeric(over_ave_ratio))
+#fit the K-NN model  
 
-validate.lm <- validate %>%
-  mutate(over_ave_ratio = as.numeric(over_ave_ratio))
-
-fit.lm.o <- lm(formula = over_ave_ratio ~ ., data = train.lm)
-# summary(fit.lm)
-# compute the AUC of this model on test.
-
-fit.lm <- stepAIC(fit.lm.o, trace = FALSE)
-
-validate$predicted.probability.lm = predict(fit.lm, validate.lm, type = 'response')
-validate.pred <- prediction(validate$predicted.probability.lm, validate$over_ave_ratio)
-validate.perf <- performance(validate.pred, "auc")
-cat('the auc score is ', validate.perf@y.values[[1]], "\n")
-######################################################################################
 
 ######################################################################################
-threshold <- 0.5
-
-validate <- validate %>% 
-  mutate(prediction.rf = ifelse(predicted.probability.rf>threshold,1,0),
-         prediction.nnet = ifelse(predicted.probability.nnet>threshold,1,0),
-         prediction.logi = ifelse(predicted.probability.logi>threshold,1,0),
-         prediction.lm = ifelse(predicted.probability.lm>threshold,1,0))
-
-accuracy <- data.frame(knn = accuracy.knn.value,
-                       rf = sum(validate$prediction.rf == validate$over_ave_ratio)/length(validate$over_ave_ratio),
-                       nnet = sum(validate$prediction.nnet == validate$over_ave_ratio)/length(validate$over_ave_ratio),
-                       logi = sum(validate$prediction.logi == validate$over_ave_ratio)/length(validate$over_ave_ratio),
-                       lm = sum(validate$prediction.lm == validate$over_ave_ratio)/length(validate$over_ave_ratio))
-######################################################################################
-
-plot(density(sale_data$blue), main = "Color Distribution of All Punks", xlab = "Color Information", 
-     xlim = c(0,255),
-     col = "blue", lwd = 2)
-lines(density(sale_data$red), col = "red", lwd = 2)
-lines(density(sale_data$green), col = "green", lwd = 2) 
-legend("topright", legend=c("Red", "Blue", "Green"),
-       col=c("red", "blue","green"), lty=1, cex = 1.2)
-
-plot(density(sale_data$alpha), main = "Opasity Distribution of All Punks", xlab = "Alpha Information", lwd = 2)
-legend("topright", legend=c("Alpha"), lty=1, cex = 1.2)
-
-       
